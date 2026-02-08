@@ -1,0 +1,85 @@
+🎯 SIMPLE GIT SETUP - 5 MINUTES
+================================
+
+EASIEST METHOD: GitHub Desktop (No Commands!)
+----------------------------------------------
+
+STEP 1: Download GitHub Desktop
+   Go to: https://desktop.github.com/
+   Download → Install → Sign in with GitHub
+
+STEP 2: Create New Repository
+   1. Open GitHub Desktop
+   2. File → New Repository
+   3. Name: family-meal-planner
+   4. Create Repository
+
+STEP 3: Add Your Files
+   1. Copy all 7 meal planner files into the folder
+   2. GitHub Desktop shows changes automatically
+   3. Commit message: "Initial commit"
+   4. Click "Commit to main"
+
+STEP 4: Publish to GitHub
+   1. Click "Publish repository" button
+   2. Choose Public or Private
+   3. Click "Publish"
+
+✅ DONE! Repo created!
+
+
+ALTERNATIVE: Command Line (5 Commands)
+---------------------------------------
+
+# 1. Create folder with your files
+mkdir family-meal-planner
+cd family-meal-planner
+# (put all 7 files here)
+
+# 2. Initialize git
+git init
+
+# 3. Stage files
+git add .
+
+# 4. Commit
+git commit -m "Initial commit - Meal Planner v1.0"
+
+# 5. Create repo on GitHub.com, then:
+git remote add origin https://github.com/YOUR_USERNAME/family-meal-planner.git
+git branch -M main
+git push -u origin main
+
+✅ DONE! Repo created!
+
+
+WHAT'S YOUR GITHUB USERNAME?
+-----------------------------
+Go to: https://github.com
+Sign up (free) if you don't have account
+Your username is in the URL: github.com/YOUR_USERNAME
+
+
+DEPLOY TO VERCEL FROM GITHUB
+-----------------------------
+1. Go to: https://vercel.com
+2. Sign in with GitHub
+3. Click "Add New Project"
+4. Select "family-meal-planner" repo
+5. Click "Deploy"
+
+✅ Auto-deploys every time you push to GitHub!
+
+
+MAKING CHANGES LATER
+---------------------
+1. Edit files locally
+2. Commit: git add . && git commit -m "Your changes"
+3. Push: git push
+4. Vercel auto-deploys! 🚀
+
+
+STUCK? READ THE FULL GUIDE
+---------------------------
+Open: GIT_SETUP_GUIDE.md
+(Complete guide with screenshots and troubleshooting)

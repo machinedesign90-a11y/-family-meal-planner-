@@ -1,0 +1,30 @@
+{
+  "name": "family-meal-planner",
+  "version": "1.0.0",
+  "description": "Smart family meal planning app with inventory management, nutrition tracking, and personalized health profiles",
+  "main": "index.html",
+  "scripts": {
+    "deploy": "vercel",
+    "deploy:prod": "vercel --prod"
+  },
+  "keywords": [
+    "meal-planner",
+    "nutrition",
+    "inventory",
+    "family",
+    "health",
+    "react"
+  ],
+  "author": "Nikhel Bansal",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YOUR_USERNAME/family-meal-planner.git"
+  },
+  "devDependencies": {
+    "vercel": "^33.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

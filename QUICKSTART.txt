@@ -1,0 +1,73 @@
+🚀 QUICK START - Deploy to Vercel in 2 Minutes
+================================================
+
+METHOD 1: Vercel CLI (Fastest)
+-------------------------------
+1. Install Vercel CLI:
+   npm install -g vercel
+
+2. Navigate to this folder:
+   cd vercel-deployment
+
+3. Deploy:
+   vercel
+
+4. Production deploy:
+   vercel --prod
+
+✅ DONE! Your app is live!
+
+
+METHOD 2: Drag & Drop (Easiest)
+--------------------------------
+1. Go to: https://vercel.com
+2. Sign in with GitHub/Google
+3. Click "Add New Project"
+4. Click "Deploy without Git"
+5. Drag this entire folder
+6. Click "Deploy"
+
+✅ DONE! Your app is live!
+
+
+METHOD 3: GitHub (Best for Teams)
+----------------------------------
+1. Create GitHub repo
+2. Push this folder:
+   git init
+   git add .
+   git commit -m "Family Meal Planner"
+   git remote add origin YOUR_REPO_URL
+   git push -u origin main
+
+3. Go to vercel.com
+4. Import your GitHub repo
+5. Click "Deploy"
+
+✅ DONE! Your app is live!
+
+
+FIRST LOGIN
+-----------
+PIN: 1234
+
+⚠️ IMPORTANT: Change PIN immediately after login!
+Go to Settings → Change PIN
+
+
+NEED HELP?
+----------
+Read README.md for full documentation
+Check troubleshooting section if login fails
+
+
+DEPLOYMENT CHECKLIST
+--------------------
+☐ Deploy to Vercel
+☐ Test PIN login (1234)
+☐ Change default PIN
+☐ Update user profiles
+☐ Add your recipes
+☐ Plan first week
+
+🎉 Enjoy your meal planner!
