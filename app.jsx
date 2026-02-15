@@ -35,8 +35,8 @@ function MealPlannerApp() {
     me: {
       name: 'Nikhel',
       age: 36,
-      height: 175, // cm
-      weight: 85, // kg
+      height: 167, // cm
+      weight: 79, // kg
       gender: 'male',
       goal: 'weight_loss',
       targetCalories: 1260,
@@ -45,8 +45,8 @@ function MealPlannerApp() {
     kiran: {
       name: 'Kiran',
       age: 34,
-      height: 165,
-      weight: 65,
+      height: 160,
+      weight: 59,
       gender: 'female',
       goal: 'maintenance',
       targetCalories: 1800,
@@ -55,8 +55,8 @@ function MealPlannerApp() {
     child: {
       name: 'Little One',
       age: 4,
-      height: 105,
-      weight: 16,
+      height: 102,
+      weight: 15,
       gender: 'female',
       goal: 'growth',
       targetCalories: 1400,
