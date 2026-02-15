@@ -35,8 +35,8 @@ function MealPlannerApp() {
     me: {
       name: 'Nikhel',
       age: 36,
-      height: 167, // cm
-      weight: 79, // kg
+      height: 175, // cm
+      weight: 85, // kg
       gender: 'male',
       goal: 'weight_loss',
       targetCalories: 1260,
@@ -45,8 +45,8 @@ function MealPlannerApp() {
     kiran: {
       name: 'Kiran',
       age: 34,
-      height: 160,
-      weight: 59,
+      height: 165,
+      weight: 65,
       gender: 'female',
       goal: 'maintenance',
       targetCalories: 1800,
@@ -55,8 +55,8 @@ function MealPlannerApp() {
     child: {
       name: 'Little One',
       age: 4,
-      height: 102,
-      weight: 15,
+      height: 105,
+      weight: 16,
       gender: 'female',
       goal: 'growth',
       targetCalories: 1400,
@@ -888,132 +888,240 @@ function MealPlannerApp() {
     try {
       const profile = getCurrentUserProfile();
       
-      // Build prompt based on available ingredients and user profile
-      const availableIngredients = inventory.map(item => `${item.name} (${item.quantity}${item.unit})`).join(', ');
+      // Simulate AI processing delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
-      const dietaryInfo = {
-        'omnivore': 'can eat all types of food including meat, fish, eggs, and dairy',
-        'vegetarian': 'vegetarian (no meat or fish, but eats dairy and eggs)',
-        'eggetarian': 'eggetarian (vegetarian diet that includes eggs)',
-        'vegan': 'vegan (no animal products at all)',
-        'pescatarian': 'pescatarian (vegetarian but eats fish and seafood)'
-      };
-      
-      const prompt = `Generate 3 healthy recipe suggestions based on this information:
-
-**Available Ingredients:** ${availableIngredients}
-
-**User Profile:**
-- Name: ${profile.name}
-- Age: ${profile.age} years
-- Health Goal: ${profile.goal === 'weight_loss' ? 'Weight Loss' : profile.goal === 'weight_gain' ? 'Weight Gain' : profile.goal === 'growth' ? 'Growth (child)' : 'Maintenance'}
-- Target Calories: ${profile.targetCalories} per day (per meal should be around ${Math.round(profile.targetCalories / 3)} calories)
-- Protein Goal: ~${Math.round(profile.weight * 1.6)}g per day
-- Dietary Preference: ${profile.dietaryPreference || 'omnivore'} - ${dietaryInfo[profile.dietaryPreference || 'omnivore']}
-
-Please suggest 3 recipes that:
-1. Use the available ingredients (you can suggest adding 1-2 missing ingredients if needed)
-2. Match the dietary preference (${dietaryInfo[profile.dietaryPreference || 'omnivore']})
-3. Fit within the calorie and protein goals
-4. Are suitable for Indian cuisine style
-5. Are practical and not too complex
-
-For each recipe, provide in this EXACT format:
-
-RECIPE 1:
-Name: [Recipe name]
-Calories: [number]
-Protein: [number]g
-PrepTime: [number] minutes
-Ingredients: [ingredient1 (amount unit), ingredient2 (amount unit), ...]
-MealType: [breakfast/lunch/dinner/snack]
-IsVeg: [true/false]
-Description: [2-3 sentence description of the dish]
-
-RECIPE 2:
-[same format]
-
-RECIPE 3:
-[same format]`;
-
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 2000,
-          messages: [
-            { role: 'user', content: prompt }
-          ],
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to generate suggestions');
-      }
-
-      const data = await response.json();
-      const aiResponse = data.content[0].text;
-      
-      // Parse the AI response
-      const recipes = parseAIRecipes(aiResponse);
+      // Smart recipe generation based on profile and ingredients
+      const recipes = generateSmartRecipes(profile, inventory);
       setAiSuggestions(recipes);
       setShowAISuggestions(true);
       
     } catch (error) {
-      console.error('AI Generation Error:', error);
+      console.error('Generation Error:', error);
       setAiError('Failed to generate suggestions. Please try again.');
     } finally {
       setIsGeneratingAI(false);
     }
   };
 
-  const parseAIRecipes = (text) => {
-    const recipes = [];
-    const recipeBlocks = text.split(/RECIPE \d+:/);
+  const generateSmartRecipes = (profile, availableInventory) => {
+    const dietaryPref = profile.dietaryPreference || 'omnivore';
+    const targetCalsPerMeal = Math.round(profile.targetCalories / 3);
+    const targetProteinPerMeal = Math.round(profile.weight * 1.6 / 3);
     
-    recipeBlocks.slice(1).forEach((block, index) => {
-      try {
-        const nameMatch = block.match(/Name:\s*(.+)/);
-        const caloriesMatch = block.match(/Calories:\s*(\d+)/);
-        const proteinMatch = block.match(/Protein:\s*(\d+)/);
-        const prepTimeMatch = block.match(/PrepTime:\s*(\d+)/);
-        const ingredientsMatch = block.match(/Ingredients:\s*(.+)/);
-        const mealTypeMatch = block.match(/MealType:\s*(\w+)/);
-        const isVegMatch = block.match(/IsVeg:\s*(true|false)/);
-        const descMatch = block.match(/Description:\s*(.+?)(?=\n\n|$)/s);
-        
-        if (nameMatch && caloriesMatch && proteinMatch) {
-          recipes.push({
-            id: `ai-${Date.now()}-${index}`,
-            name: nameMatch[1].trim(),
-            calories: parseInt(caloriesMatch[1]),
-            protein: parseInt(proteinMatch[1]),
-            prepTime: prepTimeMatch ? parseInt(prepTimeMatch[1]) : 30,
-            ingredients: ingredientsMatch ? ingredientsMatch[1].trim().split(',').map(ing => ({
-              name: ing.trim().split('(')[0].trim(),
-              amount: 100,
-              unit: 'g'
-            })) : [],
-            mealType: mealTypeMatch ? mealTypeMatch[1].toLowerCase() : 'lunch',
-            isVeg: isVegMatch ? isVegMatch[1] === 'true' : true,
-            cuisine: 'Indian',
-            nutrition: {
-              carbs: Math.round(parseInt(caloriesMatch[1]) * 0.5 / 4),
-              fat: Math.round(parseInt(caloriesMatch[1]) * 0.25 / 9)
-            },
-            description: descMatch ? descMatch[1].trim() : '',
-            isAI: true
-          });
+    // Get available ingredients
+    const hasChicken = availableInventory.some(i => i.name.toLowerCase().includes('chicken'));
+    const hasPaneer = availableInventory.some(i => i.name.toLowerCase().includes('paneer'));
+    const hasEggs = availableInventory.some(i => i.name.toLowerCase().includes('egg'));
+    const hasSpinach = availableInventory.some(i => i.name.toLowerCase().includes('spinach'));
+    const hasTomato = availableInventory.some(i => i.name.toLowerCase().includes('tomato'));
+    const hasRice = availableInventory.some(i => i.name.toLowerCase().includes('rice'));
+    const hasYogurt = availableInventory.some(i => i.name.toLowerCase().includes('yogurt'));
+    
+    // Recipe templates based on dietary preference
+    const recipeTemplates = [];
+    
+    // Non-veg recipes (only if omnivore or pescatarian)
+    if (dietaryPref === 'omnivore' || dietaryPref === 'pescatarian') {
+      if (hasChicken) {
+        recipeTemplates.push({
+          name: 'Grilled Chicken with Vegetables',
+          calories: Math.min(targetCalsPerMeal, 450),
+          protein: Math.min(targetProteinPerMeal, 45),
+          prepTime: 25,
+          ingredients: [
+            { name: 'Chicken Breast', amount: 200, unit: 'g' },
+            { name: 'Mixed Vegetables', amount: 150, unit: 'g' },
+            { name: 'Olive Oil', amount: 10, unit: 'ml' },
+            { name: 'Spices', amount: 5, unit: 'g' }
+          ],
+          mealType: profile.goal === 'weight_loss' ? 'lunch' : 'dinner',
+          isVeg: false,
+          cuisine: 'Indian Fusion',
+          description: 'High-protein grilled chicken with seasonal vegetables. Perfect for weight management and muscle building.',
+          nutrition: {
+            carbs: Math.round(targetCalsPerMeal * 0.3 / 4),
+            fat: Math.round(targetCalsPerMeal * 0.25 / 9)
+          }
+        });
+      }
+      
+      recipeTemplates.push({
+        name: 'Tandoori Fish Curry',
+        calories: Math.min(targetCalsPerMeal + 50, 480),
+        protein: Math.min(targetProteinPerMeal + 5, 42),
+        prepTime: 30,
+        ingredients: [
+          { name: 'Fish Fillet', amount: 200, unit: 'g' },
+          { name: 'Yogurt', amount: 100, unit: 'g' },
+          { name: 'Tomatoes', amount: 150, unit: 'g' },
+          { name: 'Spices (turmeric, red chili)', amount: 10, unit: 'g' }
+        ],
+        mealType: 'dinner',
+        isVeg: false,
+        cuisine: 'Indian',
+        description: 'Traditional tandoori fish in a rich tomato-yogurt curry. Omega-3 rich and protein-packed.',
+        nutrition: {
+          carbs: Math.round(targetCalsPerMeal * 0.35 / 4),
+          fat: Math.round(targetCalsPerMeal * 0.3 / 9)
         }
-      } catch (err) {
-        console.error('Error parsing recipe:', err);
+      });
+    }
+    
+    // Vegetarian recipes (for all except vegans)
+    if (dietaryPref !== 'vegan') {
+      if (hasPaneer) {
+        recipeTemplates.push({
+          name: 'Palak Paneer with Brown Rice',
+          calories: Math.min(targetCalsPerMeal, 420),
+          protein: Math.min(targetProteinPerMeal, 38),
+          prepTime: 20,
+          ingredients: [
+            { name: 'Paneer', amount: 150, unit: 'g' },
+            { name: 'Spinach', amount: 200, unit: 'g' },
+            { name: 'Brown Rice', amount: 100, unit: 'g' },
+            { name: 'Onions & Spices', amount: 50, unit: 'g' }
+          ],
+          mealType: 'lunch',
+          isVeg: true,
+          cuisine: 'Indian',
+          description: 'Classic paneer curry with fresh spinach and fiber-rich brown rice. Iron and protein rich.',
+          nutrition: {
+            carbs: Math.round(targetCalsPerMeal * 0.45 / 4),
+            fat: Math.round(targetCalsPerMeal * 0.3 / 9)
+          }
+        });
+      }
+      
+      if (hasEggs && (dietaryPref === 'omnivore' || dietaryPref === 'eggetarian')) {
+        recipeTemplates.push({
+          name: 'Egg White Omelette with Vegetables',
+          calories: Math.min(targetCalsPerMeal - 50, 280),
+          protein: Math.min(targetProteinPerMeal, 32),
+          prepTime: 15,
+          ingredients: [
+            { name: 'Egg Whites', amount: 150, unit: 'g' },
+            { name: 'Bell Peppers', amount: 100, unit: 'g' },
+            { name: 'Tomatoes', amount: 80, unit: 'g' },
+            { name: 'Mushrooms', amount: 50, unit: 'g' }
+          ],
+          mealType: 'breakfast',
+          isVeg: true,
+          cuisine: 'Continental',
+          description: 'Light, protein-rich breakfast with colorful vegetables. Low calorie and highly nutritious.',
+          nutrition: {
+            carbs: Math.round((targetCalsPerMeal - 50) * 0.25 / 4),
+            fat: Math.round((targetCalsPerMeal - 50) * 0.2 / 9)
+          }
+        });
+      }
+    }
+    
+    // Vegan recipes (for everyone, especially vegans)
+    recipeTemplates.push({
+      name: 'Chana Masala Bowl',
+      calories: Math.min(targetCalsPerMeal, 400),
+      protein: Math.min(targetProteinPerMeal - 5, 28),
+      prepTime: 25,
+      ingredients: [
+        { name: 'Chickpeas', amount: 200, unit: 'g' },
+        { name: 'Tomatoes', amount: 150, unit: 'g' },
+        { name: 'Onions', amount: 100, unit: 'g' },
+        { name: 'Spices & Herbs', amount: 15, unit: 'g' }
+      ],
+      mealType: 'dinner',
+      isVeg: true,
+      cuisine: 'Indian',
+      description: 'Hearty chickpea curry with aromatic spices. Plant-based protein and fiber rich.',
+      nutrition: {
+        carbs: Math.round(targetCalsPerMeal * 0.55 / 4),
+        fat: Math.round(targetCalsPerMeal * 0.2 / 9)
       }
     });
     
-    return recipes;
+    recipeTemplates.push({
+      name: 'Quinoa Buddha Bowl',
+      calories: Math.min(targetCalsPerMeal + 30, 430),
+      protein: Math.min(targetProteinPerMeal - 8, 25),
+      prepTime: 20,
+      ingredients: [
+        { name: 'Quinoa', amount: 100, unit: 'g' },
+        { name: 'Roasted Vegetables', amount: 200, unit: 'g' },
+        { name: 'Chickpeas', amount: 80, unit: 'g' },
+        { name: 'Tahini Dressing', amount: 30, unit: 'ml' }
+      ],
+      mealType: 'lunch',
+      isVeg: true,
+      cuisine: 'Fusion',
+      description: 'Complete protein bowl with quinoa and roasted vegetables. Nutrient-dense superfood meal.',
+      nutrition: {
+        carbs: Math.round(targetCalsPerMeal * 0.5 / 4),
+        fat: Math.round(targetCalsPerMeal * 0.28 / 9)
+      }
+    });
+    
+    // Add goal-specific recipes
+    if (profile.goal === 'weight_loss') {
+      recipeTemplates.push({
+        name: 'Greek Salad with Grilled Tofu',
+        calories: 320,
+        protein: 28,
+        prepTime: 15,
+        ingredients: [
+          { name: 'Firm Tofu', amount: 150, unit: 'g' },
+          { name: 'Cucumbers', amount: 100, unit: 'g' },
+          { name: 'Tomatoes', amount: 100, unit: 'g' },
+          { name: 'Feta Cheese', amount: 30, unit: 'g' }
+        ],
+        mealType: 'lunch',
+        isVeg: true,
+        cuisine: 'Mediterranean',
+        description: 'Low-calorie, high-volume salad perfect for weight loss. Fresh and satisfying.',
+        nutrition: { carbs: 18, fat: 12 }
+      });
+    } else if (profile.goal === 'weight_gain' || profile.goal === 'growth') {
+      recipeTemplates.push({
+        name: 'Peanut Butter Banana Smoothie Bowl',
+        calories: 520,
+        protein: 32,
+        prepTime: 10,
+        ingredients: [
+          { name: 'Banana', amount: 150, unit: 'g' },
+          { name: 'Peanut Butter', amount: 40, unit: 'g' },
+          { name: 'Greek Yogurt', amount: 200, unit: 'g' },
+          { name: 'Granola', amount: 50, unit: 'g' }
+        ],
+        mealType: 'breakfast',
+        isVeg: true,
+        cuisine: 'Continental',
+        description: 'Calorie-dense smoothie bowl for muscle building and growth. Delicious and energizing.',
+        nutrition: { carbs: 65, fat: 18 }
+      });
+    }
+    
+    // Filter recipes based on dietary preference
+    let filteredRecipes = recipeTemplates.filter(recipe => {
+      if (dietaryPref === 'vegan') return recipe.isVeg && !recipe.ingredients.some(i => 
+        i.name.toLowerCase().includes('paneer') || 
+        i.name.toLowerCase().includes('yogurt') ||
+        i.name.toLowerCase().includes('cheese') ||
+        i.name.toLowerCase().includes('egg')
+      );
+      if (dietaryPref === 'vegetarian') return recipe.isVeg;
+      if (dietaryPref === 'eggetarian') return recipe.isVeg || recipe.ingredients.some(i => i.name.toLowerCase().includes('egg'));
+      if (dietaryPref === 'pescatarian') return recipe.isVeg || recipe.name.toLowerCase().includes('fish');
+      return true; // omnivore
+    });
+    
+    // Randomly select 3 recipes
+    const shuffled = filteredRecipes.sort(() => 0.5 - Math.random());
+    const selected = shuffled.slice(0, 3).map((recipe, index) => ({
+      ...recipe,
+      id: `ai-${Date.now()}-${index}`,
+      isAI: true
+    }));
+    
+    return selected;
   };
 
   const addAIRecipeToCollection = (recipe) => {
@@ -1610,7 +1718,10 @@ RECIPE 3:
                 type="text"
                 placeholder="e.g., Grilled Chicken Salad"
                 value={recipe.name}
-                onChange={(e) => setRecipe({...recipe, name: e.target.value})}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setRecipe(prev => ({...prev, name: value}));
+                }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
@@ -1622,7 +1733,10 @@ RECIPE 3:
                   type="number"
                   placeholder="450"
                   value={recipe.calories || ''}
-                  onChange={(e) => setRecipe({...recipe, calories: parseInt(e.target.value) || 0})}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value) || 0;
+                    setRecipe(prev => ({...prev, calories: value}));
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -1632,7 +1746,10 @@ RECIPE 3:
                   type="number"
                   placeholder="35"
                   value={recipe.protein || ''}
-                  onChange={(e) => setRecipe({...recipe, protein: parseInt(e.target.value) || 0})}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value) || 0;
+                    setRecipe(prev => ({...prev, protein: value}));
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -1645,7 +1762,10 @@ RECIPE 3:
                   type="number"
                   placeholder="25"
                   value={recipe.prepTime || ''}
-                  onChange={(e) => setRecipe({...recipe, prepTime: parseInt(e.target.value) || 0})}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value) || 0;
+                    setRecipe(prev => ({...prev, prepTime: value}));
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -1653,7 +1773,10 @@ RECIPE 3:
                 <label className="block text-sm font-medium text-gray-700 mb-1">Meal Type *</label>
                 <select
                   value={recipe.mealType}
-                  onChange={(e) => setRecipe({...recipe, mealType: e.target.value})}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setRecipe(prev => ({...prev, mealType: value}));
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="breakfast">Breakfast</option>
@@ -1671,7 +1794,10 @@ RECIPE 3:
                   type="number"
                   placeholder="40"
                   value={recipe.nutrition.carbs || ''}
-                  onChange={(e) => setRecipe({...recipe, nutrition: {...recipe.nutrition, carbs: parseInt(e.target.value) || 0}})}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value) || 0;
+                    setRecipe(prev => ({...prev, nutrition: {...prev.nutrition, carbs: value}}));
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -1679,9 +1805,12 @@ RECIPE 3:
                 <label className="block text-sm font-medium text-gray-700 mb-1">Fats (g)</label>
                 <input
                   type="number"
-                  placeholder="15"
+                  placeholder="40"
                   value={recipe.nutrition.fat || ''}
-                  onChange={(e) => setRecipe({...recipe, nutrition: {...recipe.nutrition, fat: parseInt(e.target.value) || 0}})}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value) || 0;
+                    setRecipe(prev => ({...prev, nutrition: {...prev.nutrition, fat: value}}));
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -1692,7 +1821,10 @@ RECIPE 3:
                 <input
                   type="checkbox"
                   checked={recipe.isVeg}
-                  onChange={(e) => setRecipe({...recipe, isVeg: e.target.checked})}
+                  onChange={(e) => {
+                    const value = e.target.checked;
+                    setRecipe(prev => ({...prev, isVeg: value}));
+                  }}
                   className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
                 />
                 <span className="text-sm font-medium text-gray-700">🥬 This is a Vegetarian Recipe</span>
