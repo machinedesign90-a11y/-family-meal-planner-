@@ -1,7 +1,3 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -73,10 +69,47 @@ For each recipe, provide in this EXACT JSON format:
 
 Respond ONLY with valid JSON. No markdown, no explanations, just the JSON object.`;
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
+    // Call Gemini API directly using the same structure as user's Postman request
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': process.env.GEMINI_API_KEY
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              {
+                text: prompt
+              }
+            ]
+          }
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error('Gemini API Error:', errorData);
+      return res.status(response.status).json({ 
+        error: `Gemini API error: ${response.status}`,
+        details: errorData
+      });
+    }
+
+    const data = await response.json();
+    
+    // Extract text from Gemini response structure
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    
+    if (!text) {
+      console.error('Unexpected Gemini response structure:', JSON.stringify(data, null, 2));
+      return res.status(500).json({ 
+        error: 'Unexpected response from Gemini',
+        rawResponse: data
+      });
+    }
 
     // Parse JSON response
     let recipes;
