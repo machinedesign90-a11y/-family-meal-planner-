@@ -1,3 +1,45 @@
+import { supabase, authHelpers, api } from './supabase-client.js';
+
+const { useState, useEffect } = React;
+
+function MealPlannerApp() {
+  // Authentication state
+  const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  // Check authentication on mount
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  async function checkAuth() {
+    const currentUser = await authHelpers.getUser();
+    if (!currentUser) {
+      window.location.href = '/login.html';
+      return;
+    }
+    
+    setUser(currentUser);
+    
+    // Load profile from backend
+    const { profile: userProfile } = await api.getProfile();
+    setProfile(userProfile);
+    setLoading(false);
+  }
+
+  // Logout function
+  async function handleLogout() {
+    await authHelpers.signOut();
+    window.location.href = '/login.html';
+  }
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
+  // Rest of your app continues here...
+
 // Use React from global scope (loaded via CDN)
 const { useState } = React;
 
