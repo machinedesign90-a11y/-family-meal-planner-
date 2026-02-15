@@ -39,7 +39,8 @@ function MealPlannerApp() {
       weight: 85, // kg
       gender: 'male',
       goal: 'weight_loss',
-      targetCalories: 1260
+      targetCalories: 1260,
+      dietaryPreference: 'omnivore'
     },
     kiran: {
       name: 'Kiran',
@@ -48,7 +49,8 @@ function MealPlannerApp() {
       weight: 65,
       gender: 'female',
       goal: 'maintenance',
-      targetCalories: 1800
+      targetCalories: 1800,
+      dietaryPreference: 'vegetarian'
     },
     child: {
       name: 'Little One',
@@ -57,7 +59,8 @@ function MealPlannerApp() {
       weight: 16,
       gender: 'female',
       goal: 'growth',
-      targetCalories: 1400
+      targetCalories: 1400,
+      dietaryPreference: 'vegetarian'
     }
   });
 
@@ -190,6 +193,12 @@ function MealPlannerApp() {
   const [showRecipeEditor, setShowRecipeEditor] = useState(false);
   const [editingRecipe, setEditingRecipe] = useState(null);
   const [showWeekPlanner, setShowWeekPlanner] = useState(false);
+  
+  // AI Recipe Suggestions
+  const [showAISuggestions, setShowAISuggestions] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState([]);
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [aiError, setAiError] = useState(null);
   const [showProfileSettings, setShowProfileSettings] = useState(false);
   const [editingProfile, setEditingProfile] = useState(null);
 
@@ -872,6 +881,147 @@ function MealPlannerApp() {
     setCustomRecipes(customRecipes.filter(r => r.id !== id));
   };
 
+  const generateAIRecipeSuggestions = async () => {
+    setIsGeneratingAI(true);
+    setAiError(null);
+    
+    try {
+      const profile = getCurrentUserProfile();
+      
+      // Build prompt based on available ingredients and user profile
+      const availableIngredients = inventory.map(item => `${item.name} (${item.quantity}${item.unit})`).join(', ');
+      
+      const dietaryInfo = {
+        'omnivore': 'can eat all types of food including meat, fish, eggs, and dairy',
+        'vegetarian': 'vegetarian (no meat or fish, but eats dairy and eggs)',
+        'eggetarian': 'eggetarian (vegetarian diet that includes eggs)',
+        'vegan': 'vegan (no animal products at all)',
+        'pescatarian': 'pescatarian (vegetarian but eats fish and seafood)'
+      };
+      
+      const prompt = `Generate 3 healthy recipe suggestions based on this information:
+
+**Available Ingredients:** ${availableIngredients}
+
+**User Profile:**
+- Name: ${profile.name}
+- Age: ${profile.age} years
+- Health Goal: ${profile.goal === 'weight_loss' ? 'Weight Loss' : profile.goal === 'weight_gain' ? 'Weight Gain' : profile.goal === 'growth' ? 'Growth (child)' : 'Maintenance'}
+- Target Calories: ${profile.targetCalories} per day (per meal should be around ${Math.round(profile.targetCalories / 3)} calories)
+- Protein Goal: ~${Math.round(profile.weight * 1.6)}g per day
+- Dietary Preference: ${profile.dietaryPreference || 'omnivore'} - ${dietaryInfo[profile.dietaryPreference || 'omnivore']}
+
+Please suggest 3 recipes that:
+1. Use the available ingredients (you can suggest adding 1-2 missing ingredients if needed)
+2. Match the dietary preference (${dietaryInfo[profile.dietaryPreference || 'omnivore']})
+3. Fit within the calorie and protein goals
+4. Are suitable for Indian cuisine style
+5. Are practical and not too complex
+
+For each recipe, provide in this EXACT format:
+
+RECIPE 1:
+Name: [Recipe name]
+Calories: [number]
+Protein: [number]g
+PrepTime: [number] minutes
+Ingredients: [ingredient1 (amount unit), ingredient2 (amount unit), ...]
+MealType: [breakfast/lunch/dinner/snack]
+IsVeg: [true/false]
+Description: [2-3 sentence description of the dish]
+
+RECIPE 2:
+[same format]
+
+RECIPE 3:
+[same format]`;
+
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 2000,
+          messages: [
+            { role: 'user', content: prompt }
+          ],
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate suggestions');
+      }
+
+      const data = await response.json();
+      const aiResponse = data.content[0].text;
+      
+      // Parse the AI response
+      const recipes = parseAIRecipes(aiResponse);
+      setAiSuggestions(recipes);
+      setShowAISuggestions(true);
+      
+    } catch (error) {
+      console.error('AI Generation Error:', error);
+      setAiError('Failed to generate suggestions. Please try again.');
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  };
+
+  const parseAIRecipes = (text) => {
+    const recipes = [];
+    const recipeBlocks = text.split(/RECIPE \d+:/);
+    
+    recipeBlocks.slice(1).forEach((block, index) => {
+      try {
+        const nameMatch = block.match(/Name:\s*(.+)/);
+        const caloriesMatch = block.match(/Calories:\s*(\d+)/);
+        const proteinMatch = block.match(/Protein:\s*(\d+)/);
+        const prepTimeMatch = block.match(/PrepTime:\s*(\d+)/);
+        const ingredientsMatch = block.match(/Ingredients:\s*(.+)/);
+        const mealTypeMatch = block.match(/MealType:\s*(\w+)/);
+        const isVegMatch = block.match(/IsVeg:\s*(true|false)/);
+        const descMatch = block.match(/Description:\s*(.+?)(?=\n\n|$)/s);
+        
+        if (nameMatch && caloriesMatch && proteinMatch) {
+          recipes.push({
+            id: `ai-${Date.now()}-${index}`,
+            name: nameMatch[1].trim(),
+            calories: parseInt(caloriesMatch[1]),
+            protein: parseInt(proteinMatch[1]),
+            prepTime: prepTimeMatch ? parseInt(prepTimeMatch[1]) : 30,
+            ingredients: ingredientsMatch ? ingredientsMatch[1].trim().split(',').map(ing => ({
+              name: ing.trim().split('(')[0].trim(),
+              amount: 100,
+              unit: 'g'
+            })) : [],
+            mealType: mealTypeMatch ? mealTypeMatch[1].toLowerCase() : 'lunch',
+            isVeg: isVegMatch ? isVegMatch[1] === 'true' : true,
+            cuisine: 'Indian',
+            nutrition: {
+              carbs: Math.round(parseInt(caloriesMatch[1]) * 0.5 / 4),
+              fat: Math.round(parseInt(caloriesMatch[1]) * 0.25 / 9)
+            },
+            description: descMatch ? descMatch[1].trim() : '',
+            isAI: true
+          });
+        }
+      } catch (err) {
+        console.error('Error parsing recipe:', err);
+      }
+    });
+    
+    return recipes;
+  };
+
+  const addAIRecipeToCollection = (recipe) => {
+    const newRecipe = { ...recipe, isCustom: true, id: `custom-${Date.now()}` };
+    setCustomRecipes([...customRecipes, newRecipe]);
+    alert(`Added "${recipe.name}" to your recipe collection!`);
+  };
+
   const planMealForDay = (day, mealType, recipe) => {
     const key = `${day}-${mealType}`;
     setWeeklyMealPlan({
@@ -1242,30 +1392,42 @@ function MealPlannerApp() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold">Recipes</h2>
-        <button
-          onClick={() => {
-            setEditingRecipe({
-              name: '',
-              calories: 0,
-              protein: 0,
-              prepTime: 0,
-              ingredients: [],
-              mealType: 'dinner',
-              nutrition: { carbs: 0, fat: 0 },
-              isVeg: !isNonVegDay
-            });
-            setShowRecipeEditor(true);
-          }}
-          className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm"
-        >
-          <Plus className="w-4 h-4" />
-          Create Recipe
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowAISuggestions(true)}
+            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium shadow-lg hover:shadow-xl transition-all"
+          >
+            <span className="text-base">🤖</span>
+            AI Suggest
+          </button>
+          <button
+            onClick={() => {
+              setEditingRecipe({
+                name: '',
+                calories: 0,
+                protein: 0,
+                prepTime: 0,
+                ingredients: [],
+                mealType: 'dinner',
+                nutrition: { carbs: 0, fat: 0 },
+                isVeg: !isNonVegDay
+              });
+              setShowRecipeEditor(true);
+            }}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Create Recipe
+          </button>
+        </div>
       </div>
 
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-        <p className="text-sm text-blue-800">
+      <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-3">
+        <p className="text-sm text-blue-900 font-medium mb-1">
           <strong>{currentDay}</strong> • {dietType} recipes
+        </p>
+        <p className="text-xs text-purple-700">
+          💡 Try AI suggestions for personalized recipes based on your fridge and health goals!
         </p>
       </div>
 
@@ -1566,7 +1728,10 @@ function MealPlannerApp() {
                     type="text"
                     placeholder="e.g., Chicken Breast, Spinach"
                     value={newIngredient.name}
-                    onChange={(e) => setNewIngredient({...newIngredient, name: e.target.value})}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setNewIngredient(prev => ({...prev, name: value}));
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
@@ -1577,7 +1742,10 @@ function MealPlannerApp() {
                       type="number"
                       placeholder="200"
                       value={newIngredient.amount || ''}
-                      onChange={(e) => setNewIngredient({...newIngredient, amount: parseInt(e.target.value) || 0})}
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value) || 0;
+                        setNewIngredient(prev => ({...prev, amount: value}));
+                      }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
@@ -1585,7 +1753,10 @@ function MealPlannerApp() {
                     <label className="block text-xs font-medium text-gray-700 mb-1">Unit</label>
                     <select
                       value={newIngredient.unit}
-                      onChange={(e) => setNewIngredient({...newIngredient, unit: e.target.value})}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setNewIngredient(prev => ({...prev, unit: value}));
+                      }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="g">g</option>
@@ -1741,7 +1912,10 @@ function MealPlannerApp() {
                 <input
                   type="number"
                   value={editingProfile.age}
-                  onChange={(e) => setEditingProfile({...editingProfile, age: parseInt(e.target.value) || 0})}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value) || 0;
+                    setEditingProfile(prev => ({...prev, age: value}));
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                   min="1"
                   max="120"
@@ -1752,7 +1926,10 @@ function MealPlannerApp() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
                 <select
                   value={editingProfile.gender}
-                  onChange={(e) => setEditingProfile({...editingProfile, gender: e.target.value})}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setEditingProfile(prev => ({...prev, gender: value}));
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 >
                   <option value="male">Male</option>
@@ -1767,7 +1944,10 @@ function MealPlannerApp() {
                 <input
                   type="number"
                   value={editingProfile.height}
-                  onChange={(e) => setEditingProfile({...editingProfile, height: parseInt(e.target.value) || 0})}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value) || 0;
+                    setEditingProfile(prev => ({...prev, height: value}));
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                   min="50"
                   max="250"
@@ -1779,7 +1959,10 @@ function MealPlannerApp() {
                 <input
                   type="number"
                   value={editingProfile.weight}
-                  onChange={(e) => setEditingProfile({...editingProfile, weight: parseInt(e.target.value) || 0})}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value) || 0;
+                    setEditingProfile(prev => ({...prev, weight: value}));
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                   min="10"
                   max="300"
@@ -1791,7 +1974,10 @@ function MealPlannerApp() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Health Goal</label>
               <select
                 value={editingProfile.goal}
-                onChange={(e) => setEditingProfile({...editingProfile, goal: e.target.value})}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setEditingProfile(prev => ({...prev, goal: value}));
+                }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg"
               >
                 <option value="weight_loss">Weight Loss</option>
@@ -1799,6 +1985,31 @@ function MealPlannerApp() {
                 <option value="maintenance">Maintenance</option>
                 <option value="growth">Growth (for children)</option>
               </select>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">🥗 Dietary Preference</label>
+              <select
+                value={editingProfile.dietaryPreference || 'omnivore'}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setEditingProfile(prev => ({...prev, dietaryPreference: value}));
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              >
+                <option value="omnivore">🍖 Omnivore (Eats everything)</option>
+                <option value="vegetarian">🥬 Vegetarian (No meat/fish)</option>
+                <option value="eggetarian">🥚 Eggetarian (Veg + Eggs)</option>
+                <option value="vegan">🌱 Vegan (No animal products)</option>
+                <option value="pescatarian">🐟 Pescatarian (Veg + Fish)</option>
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                {editingProfile.dietaryPreference === 'vegetarian' && 'Will only show vegetarian recipes'}
+                {editingProfile.dietaryPreference === 'eggetarian' && 'Will show vegetarian recipes + eggs'}
+                {editingProfile.dietaryPreference === 'vegan' && 'Will only show plant-based recipes'}
+                {editingProfile.dietaryPreference === 'pescatarian' && 'Will show vegetarian + fish/seafood'}
+                {(!editingProfile.dietaryPreference || editingProfile.dietaryPreference === 'omnivore') && 'Will show all recipes'}
+              </p>
             </div>
             
             <div className="bg-green-50 border border-green-200 rounded-lg p-3">
@@ -2068,6 +2279,112 @@ function MealPlannerApp() {
     );
   };
 
+  const AISuggestionsModal = () => {
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+        <div className="bg-white rounded-lg p-6 max-w-2xl w-full my-8 max-h-[90vh] overflow-y-auto">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-bold">🤖 AI Recipe Suggestions</h3>
+            <button onClick={() => setShowAISuggestions(false)}>
+              <X className="w-6 h-6 text-gray-400" />
+            </button>
+          </div>
+
+          {isGeneratingAI ? (
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Generating personalized recipes...</p>
+              <p className="text-sm text-gray-500 mt-2">Based on your ingredients and health goals</p>
+            </div>
+          ) : aiError ? (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+              <p className="text-red-800 font-medium mb-2">⚠️ {aiError}</p>
+              <button
+                onClick={generateAIRecipeSuggestions}
+                className="bg-red-600 text-white px-4 py-2 rounded-lg mt-3"
+              >
+                Try Again
+              </button>
+            </div>
+          ) : aiSuggestions.length > 0 ? (
+            <div className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                <p className="text-sm text-blue-800">
+                  💡 These recipes are tailored to your dietary preferences, health goals, and available ingredients!
+                </p>
+              </div>
+
+              {aiSuggestions.map((recipe) => (
+                <div key={recipe.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <h4 className="font-bold text-lg text-gray-800">{recipe.name}</h4>
+                      {recipe.description && (
+                        <p className="text-sm text-gray-600 mt-1">{recipe.description}</p>
+                      )}
+                    </div>
+                    <span className={`px-2 py-1 rounded text-xs font-medium ${
+                      recipe.isVeg ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                    }`}>
+                      {recipe.isVeg ? '🥬 Veg' : '🍖 Non-Veg'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 mb-3">
+                    <div className="bg-gray-50 rounded p-2 text-center">
+                      <p className="text-xs text-gray-600">Calories</p>
+                      <p className="text-sm font-semibold text-gray-800">{recipe.calories}</p>
+                    </div>
+                    <div className="bg-gray-50 rounded p-2 text-center">
+                      <p className="text-xs text-gray-600">Protein</p>
+                      <p className="text-sm font-semibold text-gray-800">{recipe.protein}g</p>
+                    </div>
+                    <div className="bg-gray-50 rounded p-2 text-center">
+                      <p className="text-xs text-gray-600">Prep Time</p>
+                      <p className="text-sm font-semibold text-gray-800">{recipe.prepTime}m</p>
+                    </div>
+                  </div>
+
+                  {recipe.ingredients && recipe.ingredients.length > 0 && (
+                    <div className="mb-3">
+                      <p className="text-xs font-medium text-gray-700 mb-1">Ingredients:</p>
+                      <p className="text-sm text-gray-600">{recipe.ingredients.map(i => i.name).join(', ')}</p>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => addAIRecipeToCollection(recipe)}
+                    className="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add to My Recipes
+                  </button>
+                </div>
+              ))}
+
+              <button
+                onClick={generateAIRecipeSuggestions}
+                className="w-full bg-purple-100 text-purple-700 py-3 rounded-lg font-medium hover:bg-purple-200 transition-colors"
+              >
+                🔄 Generate New Suggestions
+              </button>
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-gray-600 mb-4">Click below to generate recipe suggestions</p>
+              <button
+                onClick={generateAIRecipeSuggestions}
+                className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-lg font-semibold"
+              >
+                🤖 Generate Suggestions
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const ShoppingListModal = () => {
     const items = getShoppingList();
     
@@ -2252,6 +2569,7 @@ function MealPlannerApp() {
           {showShoppingList && <ShoppingListModal />}
           {showRecipeEditor && <RecipeEditor />}
           {showWeekPlanner && <WeekPlanner />}
+          {showAISuggestions && <AISuggestionsModal />}
           {showPinSettings && <PinSettings />}
           {showProfileSettings && <ProfileSettings />}
         </div>
