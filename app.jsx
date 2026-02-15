@@ -207,7 +207,22 @@ function MealPlannerApp() {
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const currentDay = dayNames[dayOfWeek];
   const isNonVegDay = [0, 1, 3, 5].includes(dayOfWeek);
-  const dietType = isNonVegDay ? 'Non-Vegetarian' : 'Pure Vegetarian';
+  
+  // Get diet type based on user preference
+  const getDietTypeDisplay = () => {
+    const profile = getCurrentUserProfile();
+    const dietPref = profile.dietaryPreference || 'omnivore';
+    
+    if (dietPref === 'vegetarian') return '🥬 Vegetarian';
+    if (dietPref === 'eggetarian') return '🥚 Eggetarian (Veg + Eggs)';
+    if (dietPref === 'vegan') return '🌱 Vegan';
+    if (dietPref === 'pescatarian') return isNonVegDay ? '🐟 Pescatarian (Veg + Fish)' : '🥬 Vegetarian';
+    if (dietPref === 'omnivore') return isNonVegDay ? '🍗 Non-Vegetarian' : '🥬 Pure Vegetarian';
+    
+    return isNonVegDay ? 'Non-Vegetarian' : 'Pure Vegetarian';
+  };
+  
+  const dietType = getDietTypeDisplay();
 
   // Custom recipes state
   const [customRecipes, setCustomRecipes] = useState([]);
@@ -596,9 +611,54 @@ function MealPlannerApp() {
     ...customRecipes
   ];
 
-  const todaysRecipes = isNonVegDay 
-    ? [...defaultRecipes.nonVeg, ...customRecipes.filter(r => !r.isVeg)]
-    : [...defaultRecipes.veg, ...customRecipes.filter(r => r.isVeg)];
+  // Get recipes based on user's dietary preference AND day
+  const getCurrentUserRecipes = () => {
+    const profile = getCurrentUserProfile();
+    const dietPref = profile.dietaryPreference || 'omnivore';
+    
+    // For omnivores, use day-based filtering (original behavior)
+    if (dietPref === 'omnivore') {
+      return isNonVegDay 
+        ? [...defaultRecipes.nonVeg, ...customRecipes.filter(r => !r.isVeg)]
+        : [...defaultRecipes.veg, ...customRecipes.filter(r => r.isVeg)];
+    }
+    
+    // For vegetarian/eggetarian/vegan - ALWAYS veg recipes regardless of day
+    if (dietPref === 'vegetarian' || dietPref === 'eggetarian' || dietPref === 'vegan') {
+      const vegRecipes = [...defaultRecipes.veg, ...customRecipes.filter(r => r.isVeg)];
+      
+      // For vegan, filter out dairy/egg recipes
+      if (dietPref === 'vegan') {
+        return vegRecipes.filter(r => 
+          !r.name.toLowerCase().includes('paneer') &&
+          !r.name.toLowerCase().includes('yogurt') &&
+          !r.name.toLowerCase().includes('cheese') &&
+          !r.name.toLowerCase().includes('egg')
+        );
+      }
+      
+      return vegRecipes;
+    }
+    
+    // For pescatarian - veg recipes + fish (on non-veg days)
+    if (dietPref === 'pescatarian') {
+      const vegRecipes = [...defaultRecipes.veg, ...customRecipes.filter(r => r.isVeg)];
+      if (isNonVegDay) {
+        const fishRecipes = defaultRecipes.nonVeg.filter(r => 
+          r.name.toLowerCase().includes('fish') || 
+          r.name.toLowerCase().includes('prawn') ||
+          r.name.toLowerCase().includes('shrimp')
+        );
+        return [...vegRecipes, ...fishRecipes];
+      }
+      return vegRecipes;
+    }
+    
+    // Default: veg recipes
+    return [...defaultRecipes.veg, ...customRecipes.filter(r => r.isVeg)];
+  };
+
+  const todaysRecipes = getCurrentUserRecipes();
 
   // Dynamic schedule based on day
   const getDynamicSchedule = (dayOfWeek) => {
@@ -1947,15 +2007,52 @@ function MealPlannerApp() {
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="font-semibold">{day}</h4>
                     <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
-                      {isDayNonVeg ? '🍗 Non-Veg' : '🥬 Veg'}
+                      {isDayNonVeg && getCurrentUserProfile().dietaryPreference === 'omnivore' ? '🍗 Non-Veg' : '🥬 Veg'}
                     </span>
                   </div>
                   <div className="grid grid-cols-3 gap-2">
                     {mealTypes.map(mealType => {
                       const plannedMeal = weeklyMealPlan[`${day}-${mealType}`];
-                      const availableRecipes = isDayNonVeg 
-                        ? [...defaultRecipes.nonVeg, ...customRecipes.filter(r => !r.isVeg)]
-                        : [...defaultRecipes.veg, ...customRecipes.filter(r => r.isVeg)];
+                      
+                      // Get recipes based on user's dietary preference
+                      const profile = getCurrentUserProfile();
+                      const dietPref = profile.dietaryPreference || 'omnivore';
+                      let availableRecipes;
+                      
+                      if (dietPref === 'omnivore') {
+                        // Original behavior for omnivores
+                        availableRecipes = isDayNonVeg 
+                          ? [...defaultRecipes.nonVeg, ...customRecipes.filter(r => !r.isVeg)]
+                          : [...defaultRecipes.veg, ...customRecipes.filter(r => r.isVeg)];
+                      } else if (dietPref === 'vegetarian' || dietPref === 'eggetarian') {
+                        // Always veg for vegetarian/eggetarian
+                        availableRecipes = [...defaultRecipes.veg, ...customRecipes.filter(r => r.isVeg)];
+                      } else if (dietPref === 'vegan') {
+                        // Veg without dairy/eggs for vegan
+                        const vegRecipes = [...defaultRecipes.veg, ...customRecipes.filter(r => r.isVeg)];
+                        availableRecipes = vegRecipes.filter(r => 
+                          !r.name.toLowerCase().includes('paneer') &&
+                          !r.name.toLowerCase().includes('yogurt') &&
+                          !r.name.toLowerCase().includes('cheese') &&
+                          !r.name.toLowerCase().includes('egg')
+                        );
+                      } else if (dietPref === 'pescatarian') {
+                        // Veg + fish
+                        const vegRecipes = [...defaultRecipes.veg, ...customRecipes.filter(r => r.isVeg)];
+                        if (isDayNonVeg) {
+                          const fishRecipes = defaultRecipes.nonVeg.filter(r => 
+                            r.name.toLowerCase().includes('fish') || 
+                            r.name.toLowerCase().includes('prawn') ||
+                            r.name.toLowerCase().includes('shrimp')
+                          );
+                          availableRecipes = [...vegRecipes, ...fishRecipes];
+                        } else {
+                          availableRecipes = vegRecipes;
+                        }
+                      } else {
+                        // Default: veg
+                        availableRecipes = [...defaultRecipes.veg, ...customRecipes.filter(r => r.isVeg)];
+                      }
                       
                       return (
                         <div key={mealType}>
@@ -2650,10 +2747,18 @@ function MealPlannerApp() {
           </div>
 
           <div className="p-4">
-            {activeTab === 'home' && <HomeDashboard />}
-            {activeTab === 'inventory' && <InventoryTab />}
-            {activeTab === 'recipes' && <RecipesTab />}
-            {activeTab === 'schedule' && <ScheduleTab />}
+            <div style={{ display: activeTab === 'home' ? 'block' : 'none' }}>
+              <HomeDashboard />
+            </div>
+            <div style={{ display: activeTab === 'inventory' ? 'block' : 'none' }}>
+              <InventoryTab />
+            </div>
+            <div style={{ display: activeTab === 'recipes' ? 'block' : 'none' }}>
+              <RecipesTab />
+            </div>
+            <div style={{ display: activeTab === 'schedule' ? 'block' : 'none' }}>
+              <ScheduleTab />
+            </div>
           </div>
 
           <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg">
