@@ -1,38 +1,171 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Family Meal Planner - Plan, Track & Shop</title>
-    <meta name="description" content="Smart family meal planning app with automatic inventory management, personalized nutrition tracking, and integrated shopping">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Family Meal Planner</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+  <div id="root"></div>
 
-     <!-- Authentication Check -->
+  <!-- React from CDN -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- Supabase Client -->
   <script type="module">
-    import { authHelpers } from './supabase-client.js';
-    
-    // Check if user is logged in
-    const session = await authHelpers.getSession();
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+    // IMPORTANT: Replace these with your actual values
+    const SUPABASE_URL = 'https://fgjspmhzeegdtzqpddhh.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZnanNwbW56ZWVnZHR6cXBkZGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzExNjQyOTIsImV4cCI6MjA4Njc0MDI5Mn0.c-XNp93VDeJwtCNON_NjRwDmn-W7McGnkZSRDe8161w'; // REPLACE THIS!
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // Authentication helpers
+    window.authHelpers = {
+      async signUp(email, password, profile) {
+        try {
+          const response = await fetch('/api/auth/signup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password, name: profile.name, profile })
+          });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error);
+          return { data, error: null };
+        } catch (error) {
+          return { data: null, error };
+        }
+      },
+
+      async signIn(email, password) {
+        try {
+          const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+          if (error) throw error;
+          return { data, error: null };
+        } catch (error) {
+          return { data: null, error };
+        }
+      },
+
+      async signOut() {
+        const { error } = await supabase.auth.signOut();
+        return { error };
+      },
+
+      async getSession() {
+        const { data } = await supabase.auth.getSession();
+        return data.session;
+      },
+
+      async getUser() {
+        const { data } = await supabase.auth.getUser();
+        return data.user;
+      }
+    };
+
+    // API helpers
+    window.api = {
+      async getAuthHeader() {
+        const session = await window.authHelpers.getSession();
+        return session ? { Authorization: `Bearer ${session.access_token}` } : {};
+      },
+
+      async getProfile() {
+        const headers = await this.getAuthHeader();
+        const response = await fetch('/api/profile', {
+          headers: { ...headers, 'Content-Type': 'application/json' }
+        });
+        return response.json();
+      },
+
+      async updateProfile(updates) {
+        const headers = await this.getAuthHeader();
+        const response = await fetch('/api/profile', {
+          method: 'PUT',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ updates })
+        });
+        return response.json();
+      },
+
+      async getRecipes() {
+        const headers = await this.getAuthHeader();
+        const response = await fetch('/api/recipes', {
+          headers: { ...headers, 'Content-Type': 'application/json' }
+        });
+        return response.json();
+      },
+
+      async createRecipe(recipe) {
+        const headers = await this.getAuthHeader();
+        const response = await fetch('/api/recipes', {
+          method: 'POST',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ recipe })
+        });
+        return response.json();
+      },
+
+      async deleteRecipe(id) {
+        const headers = await this.getAuthHeader();
+        const response = await fetch(`/api/recipes?id=${id}`, {
+          method: 'DELETE',
+          headers: { ...headers, 'Content-Type': 'application/json' }
+        });
+        return response.json();
+      },
+
+      async getInventory() {
+        const headers = await this.getAuthHeader();
+        const response = await fetch('/api/inventory', {
+          headers: { ...headers, 'Content-Type': 'application/json' }
+        });
+        return response.json();
+      },
+
+      async addInventoryItem(item) {
+        const headers = await this.getAuthHeader();
+        const response = await fetch('/api/inventory', {
+          method: 'POST',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ item })
+        });
+        return response.json();
+      },
+
+      async deleteInventoryItem(id) {
+        const headers = await this.getAuthHeader();
+        const response = await fetch(`/api/inventory?id=${id}`, {
+          method: 'DELETE',
+          headers: { ...headers, 'Content-Type': 'application/json' }
+        });
+        return response.json();
+      },
+
+      async generateRecipes(profile, inventory) {
+        const response = await fetch('/api/ai/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ profile, inventory })
+        });
+        return response.json();
+      }
+    };
+
+    // Check authentication before loading app
+    const session = await window.authHelpers.getSession();
     if (!session) {
-      // Not logged in, redirect to login page
       window.location.href = '/login.html';
     }
   </script>
-    <!-- React & Babel -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Favicon -->
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍽️</text></svg>">
-    
-</head>
-<body>
-    <div id="root"></div>
-    
-    <script type="text/babel" src="./app.jsx"></script>
+
+  <!-- Main App -->
+  <script type="text/babel" src="./app.jsx"></script>
+  
+  <!-- Babel Standalone for JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </body>
 </html>
-
