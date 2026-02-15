@@ -1146,7 +1146,10 @@ function MealPlannerApp() {
                   type="text"
                   placeholder="Ingredient name"
                   value={newIngredient.name}
-                  onChange={(e) => setNewIngredient({...newIngredient, name: e.target.value})}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setNewIngredient(prev => ({...prev, name: value}));
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                 />
                 <div className="grid grid-cols-2 gap-2">
@@ -1154,12 +1157,18 @@ function MealPlannerApp() {
                     type="number"
                     placeholder="Quantity"
                     value={newIngredient.quantity}
-                    onChange={(e) => setNewIngredient({...newIngredient, quantity: e.target.value})}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setNewIngredient(prev => ({...prev, quantity: value}));
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                   />
                   <select
                     value={newIngredient.unit}
-                    onChange={(e) => setNewIngredient({...newIngredient, unit: e.target.value})}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setNewIngredient(prev => ({...prev, unit: value}));
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                   >
                     <option value="g">g</option>
@@ -1171,7 +1180,10 @@ function MealPlannerApp() {
                 </div>
                 <select
                   value={newIngredient.category}
-                  onChange={(e) => setNewIngredient({...newIngredient, category: e.target.value})}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setNewIngredient(prev => ({...prev, category: value}));
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                 >
                   <option value="vegetables">Vegetables</option>
