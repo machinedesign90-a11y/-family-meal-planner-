@@ -983,9 +983,31 @@ function MealPlannerApp() {
     setCustomRecipes(customRecipes.filter(r => r.id !== id));
   };
 
+  //const generateAIRecipeSuggestions = async () => {
+    //setIsGeneratingAI(true);
+    //setAiError(null);
   const generateAIRecipeSuggestions = async () => {
-    setIsGeneratingAI(true);
-    setAiError(null);
+  setIsGeneratingAI(true);
+  setAiError(null);
+  
+  try {
+    // Call your actual backend API
+    const result = await api.generateRecipes(profile, inventory);
+    
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to generate recipes');
+    }
+    
+    setAiSuggestions(result.recipes);
+    setShowAISuggestions(true);
+    
+  } catch (error) {
+    console.error('AI Generation Error:', error);
+    setAiError('Failed to generate suggestions. Please try again.');
+  } finally {
+    setIsGeneratingAI(false);
+  }
+};
     
     try {
       const profile = getCurrentUserProfile();
