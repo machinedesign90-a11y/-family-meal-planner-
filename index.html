@@ -145,14 +145,13 @@
         return response.json();
       },
 
-      async generateRecipes(profile, inventory) {
-        const response = await fetch('/api/ai/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ profile, inventory })
-        });
-        return response.json();
-      }
+async generateRecipes(profile, inventory) {
+     const headers = await this.getAuthHeader();
+     const response = await fetch('/api/ai/generate', {
+       method: 'POST',
+       headers: { ...headers, 'Content-Type': 'application/json' },
+       body: JSON.stringify({ inventory })
+     });
     };
 
     // Check authentication before loading app
