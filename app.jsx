@@ -134,7 +134,8 @@ function MealPlannerApp() {
     setAiError(null);
     
     try {
-      const result = await window.api.generateRecipes(profile, inventory);
+     // const result = await window.api.generateRecipes(profile, inventory);
+      const result = await window.api.generateRecipes(null, inventory);
       
       if (!result.success) {
         throw new Error(result.error || 'Failed to generate recipes');
