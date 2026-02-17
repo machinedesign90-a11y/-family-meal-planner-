@@ -145,14 +145,17 @@
         return response.json();
       },
 
+// ✅ CORRECT
 async generateRecipes(profile, inventory) {
-     const headers = await this.getAuthHeader();
-     const response = await fetch('/api/ai/generate', {
-       method: 'POST',
-       headers: { ...headers, 'Content-Type': 'application/json' },
-       body: JSON.stringify({ inventory })
-     })
-    };
+  const headers = await this.getAuthHeader();
+  const response = await fetch('/api/ai/generate', {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ inventory })
+  });
+  return response.json();  // ← ADD THIS
+}              // ← closes the function
+};             // ← closes window.api
 
     // Check authentication before loading app
     const session = await window.authHelpers.getSession();
