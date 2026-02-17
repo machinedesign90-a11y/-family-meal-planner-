@@ -1,15 +1,59 @@
+// Fixed AI generation with fresh profile fetch
+import { createClient } from '@supabase/supabase-js';
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const { profile, inventory } = req.body;
+    // Get user from authorization header
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({ error: 'Unauthorized - No auth token' });
+    }
+
+    // Create Supabase client with user's token
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      {
+        global: {
+          headers: {
+            Authorization: authHeader
+          }
+        }
+      }
+    );
+
+    // Get current user
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      return res.status(401).json({ error: 'Unauthorized - Invalid token' });
+    }
+
+    // ✅ FETCH FRESH PROFILE FROM DATABASE
+    const { data: profileData, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError) {
+      console.error('Profile fetch error:', profileError);
+      return res.status(500).json({ error: 'Failed to fetch profile' });
+    }
+
+    // Use database profile (fresh data!)
+    const profile = profileData;
+
+    // Get inventory from request body (or fetch from DB too)
+    const { inventory } = req.body;
 
     // Build prompt
-    const availableIngredients = inventory
-      .map(item => `${item.name} (${item.quantity}${item.unit})`)
-      .join(', ');
+    const availableIngredients = inventory && inventory.length > 0
+      ? inventory.map(item => `${item.name} (${item.quantity}${item.unit})`).join(', ')
+      : 'Basic Indian pantry staples';
 
     const dietaryInfo = {
       'omnivore': 'can eat all types of food including meat, fish, eggs, and dairy',
@@ -19,12 +63,15 @@ export default async function handler(req, res) {
       'pescatarian': 'pescatarian (vegetarian but eats fish and seafood)'
     };
 
-    const targetCalsPerMeal = Math.round(profile.targetCalories / 3);
+    const targetCalsPerMeal = Math.round(profile.target_calories / 3);
     const targetProteinPerMeal = Math.round(profile.weight * 1.6 / 3);
+
+    // Get dietary preference from database
+    const dietPref = profile.dietary_preference || 'omnivore';
 
     const prompt = `You are a professional nutritionist and chef specializing in Indian cuisine. Generate 3 healthy, practical recipe suggestions.
 
-**Available Ingredients:** ${availableIngredients || 'Basic Indian pantry staples'}
+**Available Ingredients:** ${availableIngredients}
 
 **User Profile:**
 - Name: ${profile.name}
@@ -32,11 +79,14 @@ export default async function handler(req, res) {
 - Health Goal: ${profile.goal === 'weight_loss' ? 'Weight Loss' : profile.goal === 'weight_gain' ? 'Weight Gain' : profile.goal === 'growth' ? 'Growth (child)' : 'Maintenance'}
 - Target Calories per meal: ~${targetCalsPerMeal} calories
 - Protein Goal per meal: ~${targetProteinPerMeal}g
-- Dietary Preference: ${profile.dietaryPreference || 'omnivore'} - ${dietaryInfo[profile.dietaryPreference || 'omnivore']}
+- Dietary Preference: ${dietPref} - ${dietaryInfo[dietPref]}
+
+IMPORTANT: The user is ${dietPref}. You MUST ONLY suggest recipes that match this dietary preference:
+${dietaryInfo[dietPref]}
 
 Please suggest 3 diverse recipes that:
 1. Use available ingredients (you can suggest 1-2 additional common items if needed)
-2. Strictly match dietary preference: ${dietaryInfo[profile.dietaryPreference || 'omnivore']}
+2. STRICTLY match dietary preference: ${dietaryInfo[dietPref]}
 3. Fit within calorie and protein goals
 4. Are suitable for Indian household cooking
 5. Are practical and not overly complex
@@ -69,7 +119,7 @@ For each recipe, provide in this EXACT JSON format:
 
 Respond ONLY with valid JSON. No markdown, no explanations, just the JSON object.`;
 
-    // Call Gemini API directly using the same structure as user's Postman request
+    // Call Gemini API
     const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent', {
       method: 'POST',
       headers: {
@@ -100,7 +150,7 @@ Respond ONLY with valid JSON. No markdown, no explanations, just the JSON object
 
     const data = await response.json();
     
-    // Extract text from Gemini response structure
+    // Extract text from Gemini response
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
     
     if (!text) {
@@ -114,7 +164,6 @@ Respond ONLY with valid JSON. No markdown, no explanations, just the JSON object
     // Parse JSON response
     let recipes;
     try {
-      // Remove markdown code blocks if present
       const cleanText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       const parsed = JSON.parse(cleanText);
       recipes = parsed.recipes || [];
@@ -134,9 +183,15 @@ Respond ONLY with valid JSON. No markdown, no explanations, just the JSON object
       createdAt: new Date().toISOString()
     }));
 
+    // ✅ Return with fresh profile data
     res.status(200).json({ 
       success: true,
-      recipes: recipesWithIds
+      recipes: recipesWithIds,
+      profileUsed: {
+        name: profile.name,
+        dietaryPreference: profile.dietary_preference,
+        goal: profile.goal
+      }
     });
 
   } catch (error) {
