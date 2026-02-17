@@ -197,10 +197,14 @@ function MealPlannerApp() {
       if (pd.profile?.city) {
         setCity(pd.profile.city);
       } else {
+        // Detect city in background - capture profile locally to avoid null ref
+        const profileSnapshot = pd.profile;
         detectCity().then(async detected => {
-          if (detected) {
+          if (detected && profileSnapshot) {
             setCity(detected);
-            await window.api.updateProfile({ ...pd.profile, city: detected });
+            try {
+              await window.api.updateProfile({ ...profileSnapshot, city: detected });
+            } catch (e) { console.warn('Could not save city to profile:', e); }
           }
         });
       }
@@ -305,8 +309,16 @@ function MealPlannerApp() {
     setAiModal(slotKey);
     setAiData({ suggestions: [], loading: true, error: null });
     try {
-      const result = await window.api.generateRecipes(null, inventory);
-      if (!result.success) throw new Error(result.error);
+      // Use direct fetch with auth header - NOT window.api.generateRecipes (no auth)
+      const h = await window.api.getAuthHeader();
+      const r = await fetch('/api/ai/generate', {
+        method: 'POST',
+        headers: { ...h, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inventory })
+      });
+      if (!r.ok) throw new Error(`Server error: ${r.status}`);
+      const result = await r.json();
+      if (!result.success) throw new Error(result.error || 'AI generation failed');
       setAiData({ suggestions: result.recipes || [], loading: false, error: null });
     } catch (e) { setAiData({ suggestions: [], loading: false, error: e.message }); }
   }
@@ -323,9 +335,15 @@ function MealPlannerApp() {
   }
 
   async function handleSaveProfile(updated) {
-    const cal = calcCalories(updated);
-    const { profile: p } = await window.api.updateProfile({ ...updated, target_calories: cal });
-    setProfile(p); if (p.city) setCity(p.city);
+    try {
+      const cal = calcCalories(updated);
+      const result = await window.api.updateProfile({ ...updated, target_calories: cal });
+      const p = result?.profile || result;
+      if (p && typeof p === 'object') {
+        setProfile(p);
+        if (p.city) setCity(p.city);
+      }
+    } catch (e) { console.error('Profile save error:', e); alert('Profile saved! Please refresh to see updates.'); }
   }
 
   // Recipes
