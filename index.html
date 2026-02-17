@@ -151,7 +151,7 @@ async generateRecipes(profile, inventory) {
        method: 'POST',
        headers: { ...headers, 'Content-Type': 'application/json' },
        body: JSON.stringify({ inventory })
-     });
+     })
     };
 
     // Check authentication before loading app
